@@ -40,23 +40,21 @@ const io = new Server(server, {
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+  origin: [
+    "https://frontend-ju-sense.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:3001"
+  ],
+  credentials: true
+}));
 
-    const allowedOrigins = [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "https://backend-jusense.onrender.com",
-      "https://frontend-ju-sense.vercel.app"
-    ];
-
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+// Handle preflight requests for all routes
+app.options('*', cors({
+  origin: [
+    "https://frontend-ju-sense.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:3001"
+  ],
   credentials: true
 }));
 app.use(express.json());
