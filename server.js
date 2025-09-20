@@ -15,23 +15,12 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-
-      const allowedOrigins = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "https://backend-jusense.onrender.com",
-        "https://frontend-ju-sense.vercel.app"
-      ];
-
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: [
+      "https://frontend-ju-sense.vercel.app",
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://127.0.0.1:3000"
+    ],
     methods: ["GET", "POST"],
     credentials: true
   }
