@@ -26,9 +26,15 @@ router.post('/:id/vote', optionalAuth, async (req, res) => {
       return res.status(404).json({ error: 'Poll not found' });
     }
 
+
     // Check if poll is accessible
     if (!poll.isPublic && (!req.user || !req.user._id.equals(poll.createdBy))) {
       return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Prevent poll owner from voting
+    if (req.user && req.user._id.equals(poll.createdBy)) {
+      return res.status(403).json({ error: 'Owners cannot vote on their own poll.' });
     }
 
     // Check if option index is valid
@@ -74,6 +80,15 @@ router.post('/:id/vote', optionalAuth, async (req, res) => {
 router.get('/:id/voters', async (req, res) => {
   try {
     const pollId = req.params.id;
+    // Find the poll to get the owner
+    const poll = await Poll.findById(pollId);
+    if (!poll) {
+      return res.status(404).json({ error: 'Poll not found' });
+    }
+    // If user is owner, block access
+    if (req.user && req.user._id.equals(poll.createdBy)) {
+      return res.status(403).json({ error: 'Owners cannot view poll results.' });
+    }
     // Get all votes for this poll
     const votes = await Vote.find({ pollId }, 'name').lean();
     const voterNames = votes.map(v => v.name);
