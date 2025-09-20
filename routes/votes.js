@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Poll = require('../models/Poll');
 const Vote = require('../models/Vote');
 const { authenticateToken, optionalAuth } = require('../middleware/auth');
@@ -7,10 +8,14 @@ const router = express.Router();
 
 // Submit a vote
 router.post('/:id/vote', optionalAuth, async (req, res) => {
-
   try {
     const { optionIndex, name } = req.body;
     const pollId = req.params.id;
+
+    // Validate Poll ID
+    if (!mongoose.Types.ObjectId.isValid(pollId)) {
+      return res.status(400).json({ error: 'Invalid poll ID' });
+    }
 
     // Validation
     if (optionIndex === undefined || optionIndex === null) {
@@ -25,7 +30,6 @@ router.post('/:id/vote', optionalAuth, async (req, res) => {
     if (!poll) {
       return res.status(404).json({ error: 'Poll not found' });
     }
-
 
     // Check if poll is accessible
     if (!poll.isPublic && (!req.user || !req.user._id.equals(poll.createdBy))) {
@@ -79,41 +83,24 @@ router.post('/:id/vote', optionalAuth, async (req, res) => {
       throw err;
     }
 
-    // Update poll vote counts
-    await Poll.findByIdAndUpdate(pollId, {
-      $inc: { 'options.$[elem].votes': 1, totalVotes: 1 },
+    // Correctly update poll vote counts using the option index
+    const updateQuery = {
+      $inc: { totalVotes: 1 },
       $push: { voters: { userId: req.user ? req.user._id : null, optionIndex, name: name.trim() } }
-    }, {
-      arrayFilters: [{ 'elem': optionIndex }]
-    });
-// Get voter names for a poll
-router.get('/:id/voters', async (req, res) => {
-  try {
-    const pollId = req.params.id;
-    // Find the poll to get the owner
-    const poll = await Poll.findById(pollId);
-    if (!poll) {
-      return res.status(404).json({ error: 'Poll not found' });
-    }
-    // Allow owner to view voters (no block)
-    // Get all votes for this poll
-    const votes = await Vote.find({ pollId }, 'name').lean();
-    const voterNames = votes.map(v => v.name);
-    res.json({ voters: voterNames });
-  } catch (error) {
-    console.error('Error fetching voters:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
+    };
+    updateQuery[`options.${optionIndex}.votes`] = 1;
+
+    // Update poll vote counts
+    await Poll.findByIdAndUpdate(pollId, updateQuery);
 
     // Get updated poll data
-    const updatedPoll = await Poll.findById(pollId);
+    const updatedPoll = await Poll.findById(pollId).lean();
     const votes = await Vote.aggregate([
       { $match: { pollId: poll._id } },
       { $group: { _id: '$optionIndex', count: { $sum: 1 } } }
     ]);
 
-    const pollWithVotes = updatedPoll.toObject();
+    const pollWithVotes = { ...updatedPoll };
     pollWithVotes.options = pollWithVotes.options.map((option, index) => ({
       ...option,
       votes: votes.find(v => v._id === index)?.count || 0
@@ -130,6 +117,38 @@ router.get('/:id/voters', async (req, res) => {
     });
   } catch (error) {
     console.error('Vote error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get voter names for a poll (owner only)
+router.get('/:id/voters', authenticateToken, async (req, res) => {
+  try {
+    const pollId = req.params.id;
+
+    // Find the poll to get the owner
+    const poll = await Poll.findById(pollId).lean();
+    if (!poll) {
+      return res.status(404).json({ error: 'Poll not found' });
+    }
+
+    // Only the poll owner can see the voter details.
+    if (!poll.createdBy.equals(req.user._id)) {
+      return res.status(403).json({ error: 'Access denied. Only the poll owner can view these details.' });
+    }
+
+    // Get all votes for this poll to get voter names and their choices
+    const votes = await Vote.find({ pollId }, 'name optionIndex').lean();
+
+    const voterDetails = poll.options.map((option, index) => ({
+      option: option.text,
+      count: option.votes || 0,
+      voters: votes.filter(vote => vote.optionIndex === index).map(vote => vote.name)
+    }));
+
+    res.json({ totalVotes: poll.totalVotes, voterDetails });
+  } catch (error) {
+    console.error('Error fetching voters:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

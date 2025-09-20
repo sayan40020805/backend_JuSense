@@ -41,6 +41,11 @@ const pollSchema = new mongoose.Schema({
       type: Number,
       required: true
     },
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
     votedAt: {
       type: Date,
       default: Date.now
