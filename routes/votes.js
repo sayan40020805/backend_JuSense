@@ -58,16 +58,26 @@ router.post('/:id/vote', optionalAuth, async (req, res) => {
     }
 
     // Create vote record
-    const vote = new Vote({
+    const voteData = {
       pollId,
       userId: req.user ? req.user._id : null,
       optionIndex,
       isGuest: !req.user,
-      guestId: req.user ? null : (req.headers['x-guest-id'] || req.ip),
       name: name.trim()
-    });
+    };
+    if (!req.user) {
+      voteData.guestId = req.headers['x-guest-id'] || req.ip;
+    }
+    const vote = new Vote(voteData);
 
-    await vote.save();
+    try {
+      await vote.save();
+    } catch (err) {
+      if (err.code === 11000) {
+        return res.status(400).json({ error: 'You have already voted on this poll.' });
+      }
+      throw err;
+    }
 
     // Update poll vote counts
     await Poll.findByIdAndUpdate(pollId, {
