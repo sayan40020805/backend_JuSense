@@ -95,10 +95,7 @@ router.get('/:id/voters', async (req, res) => {
     if (!poll) {
       return res.status(404).json({ error: 'Poll not found' });
     }
-    // If user is owner, block access
-    if (req.user && req.user._id.equals(poll.createdBy)) {
-      return res.status(403).json({ error: 'Owners cannot view poll results.' });
-    }
+    // Allow owner to view voters (no block)
     // Get all votes for this poll
     const votes = await Vote.find({ pollId }, 'name').lean();
     const voterNames = votes.map(v => v.name);
