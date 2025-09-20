@@ -22,7 +22,8 @@ const io = new Server(server, {
       const allowedOrigins = [
         "http://localhost:3000",
         "http://localhost:3001",
-        "https://backend-jusense.onrender.com"
+        "https://backend-jusense.onrender.com",
+        "https://frontend-ju-sense.vercel.app"
       ];
 
       if (allowedOrigins.indexOf(origin) !== -1) {
@@ -46,7 +47,8 @@ app.use(cors({
     const allowedOrigins = [
       "http://localhost:3000",
       "http://localhost:3001",
-      "https://backend-jusense.onrender.com"
+      "https://backend-jusense.onrender.com",
+      "https://frontend-ju-sense.vercel.app"
     ];
 
     if (allowedOrigins.indexOf(origin) !== -1) {
