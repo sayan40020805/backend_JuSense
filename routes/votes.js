@@ -7,13 +7,17 @@ const router = express.Router();
 
 // Submit a vote
 router.post('/:id/vote', optionalAuth, async (req, res) => {
+
   try {
-    const { optionIndex } = req.body;
+    const { optionIndex, name } = req.body;
     const pollId = req.params.id;
 
     // Validation
     if (optionIndex === undefined || optionIndex === null) {
       return res.status(400).json({ error: 'Option index is required' });
+    }
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Voter name is required' });
     }
 
     // Find the poll
@@ -53,7 +57,8 @@ router.post('/:id/vote', optionalAuth, async (req, res) => {
       userId: req.user ? req.user._id : null,
       optionIndex,
       isGuest: !req.user,
-      guestId: req.user ? null : (req.headers['x-guest-id'] || req.ip)
+      guestId: req.user ? null : (req.headers['x-guest-id'] || req.ip),
+      name: name.trim()
     });
 
     await vote.save();
@@ -61,10 +66,23 @@ router.post('/:id/vote', optionalAuth, async (req, res) => {
     // Update poll vote counts
     await Poll.findByIdAndUpdate(pollId, {
       $inc: { 'options.$[elem].votes': 1, totalVotes: 1 },
-      $push: { voters: { userId: req.user ? req.user._id : null, optionIndex } }
+      $push: { voters: { userId: req.user ? req.user._id : null, optionIndex, name: name.trim() } }
     }, {
       arrayFilters: [{ 'elem': optionIndex }]
     });
+// Get voter names for a poll
+router.get('/:id/voters', async (req, res) => {
+  try {
+    const pollId = req.params.id;
+    // Get all votes for this poll
+    const votes = await Vote.find({ pollId }, 'name').lean();
+    const voterNames = votes.map(v => v.name);
+    res.json({ voters: voterNames });
+  } catch (error) {
+    console.error('Error fetching voters:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
     // Get updated poll data
     const updatedPoll = await Poll.findById(pollId);

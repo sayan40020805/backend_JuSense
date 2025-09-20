@@ -18,6 +18,12 @@ const voteSchema = new mongoose.Schema({
     required: [true, 'Option index is required'],
     min: [0, 'Option index must be 0 or greater']
   },
+  name: {
+    type: String,
+    required: [true, 'Voter name is required'],
+    trim: true,
+    maxlength: [100, 'Voter name cannot exceed 100 characters']
+  },
   isGuest: {
     type: Boolean,
     default: false
