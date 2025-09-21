@@ -85,35 +85,23 @@ router.post('/:id/vote', optionalAuth, async (req, res) => {
 
     // Correctly update poll vote counts using the option index
     const updateQuery = {
-      $inc: { totalVotes: 1 },
+      $inc: {
+        totalVotes: 1,
+        [`options.${optionIndex}.votes`]: 1
+      },
       $push: { voters: { userId: req.user ? req.user._id : null, optionIndex, name: name.trim() } }
     };
-    updateQuery[`options.${optionIndex}.votes`] = 1;
 
     // Update poll vote counts
-    await Poll.findByIdAndUpdate(pollId, updateQuery);
-
-    // Get updated poll data
-    const updatedPoll = await Poll.findById(pollId).lean();
-    const votes = await Vote.aggregate([
-      { $match: { pollId: poll._id } },
-      { $group: { _id: '$optionIndex', count: { $sum: 1 } } }
-    ]);
-
-    const pollWithVotes = { ...updatedPoll };
-    pollWithVotes.options = pollWithVotes.options.map((option, index) => ({
-      ...option,
-      votes: votes.find(v => v._id === index)?.count || 0
-    }));
-    pollWithVotes.totalVotes = votes.reduce((sum, v) => sum + v.count, 0);
+    const updatedPoll = await Poll.findByIdAndUpdate(pollId, updateQuery, { new: true }).lean();
 
     // Emit real-time update via Socket.io
     const io = req.app.get('io');
-    io.to(pollId).emit('poll-updated', { poll: pollWithVotes });
+    io.to(pollId).emit('poll-updated', { poll: updatedPoll });
 
     res.json({
       message: 'Vote submitted successfully',
-      poll: pollWithVotes
+      poll: updatedPoll
     });
   } catch (error) {
     console.error('Vote error:', error);

@@ -1,7 +1,7 @@
 const express = require('express');
 const Poll = require('../models/Poll');
 const Vote = require('../models/Vote');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -60,7 +60,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Get a specific poll by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const poll = await Poll.findById(req.params.id);
 
@@ -73,23 +73,8 @@ router.get('/:id', async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Get vote counts
-    const votes = await Vote.aggregate([
-      { $match: { pollId: poll._id } },
-      { $group: { _id: '$optionIndex', count: { $sum: 1 } } }
-    ]);
-
-    // Update poll options with vote counts
-    const pollWithVotes = poll.toObject();
-    pollWithVotes.options = pollWithVotes.options.map((option, index) => ({
-      ...option,
-      votes: votes.find(v => v._id === index)?.count || 0
-    }));
-
-    // Calculate total votes
-    pollWithVotes.totalVotes = votes.reduce((sum, v) => sum + v.count, 0);
-
-    res.json({ poll: pollWithVotes });
+    // The poll document already contains the vote counts.
+    res.json({ poll });
   } catch (error) {
     console.error('Get poll error:', error);
     res.status(500).json({ error: 'Internal server error' });
