@@ -104,7 +104,9 @@ router.get('/:id/voters', authenticateToken, async (req, res) => {
     }
 
     // Only the poll owner can see the voter details.
-    if (!poll.createdBy.equals(req.user._id)) {
+    // Using .toString() for comparison is more robust against potential ObjectId type differences
+    // that can arise when using .lean().
+    if (poll.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ error: 'Access denied. Only the poll owner can view these details.' });
     }
 
