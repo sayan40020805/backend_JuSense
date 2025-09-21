@@ -37,6 +37,9 @@ const pollSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
+    guestId: {
+      type: String
+    },
     optionIndex: {
       type: Number,
       required: true

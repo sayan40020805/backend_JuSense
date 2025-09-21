@@ -1,7 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const Poll = require('../models/Poll');
-const Vote = require('../models/Vote');
 const { authenticateToken, optionalAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -46,54 +45,38 @@ router.post('/:id/vote', optionalAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid option index' });
     }
 
-    // Check if user has already voted
-    let existingVote = null;
-    if (req.user) {
-      existingVote = await Vote.findOne({ pollId, userId: req.user._id });
-    } else {
-      // For guest voting, we would need a guest identifier
-      // For now, we'll allow one vote per session
-      const guestId = req.headers['x-guest-id'] || req.ip;
-      existingVote = await Vote.findOne({ pollId, guestId, isGuest: true });
-    }
-
-    if (existingVote) {
-      return res.status(400).json({ error: 'You have already voted on this poll' });
-    }
-
-    // Create vote record
-    const voteData = {
-      pollId,
-      userId: req.user ? req.user._id : null,
+    // Atomically update the poll, but only if the user hasn't voted yet.
+    // This prevents race conditions and ensures data consistency.
+    const findQuery = { _id: pollId };
+    const voterData = {
       optionIndex,
-      isGuest: !req.user,
       name: name.trim()
     };
-    if (!req.user) {
-      voteData.guestId = req.headers['x-guest-id'] || req.ip;
-    }
-    const vote = new Vote(voteData);
 
-    try {
-      await vote.save();
-    } catch (err) {
-      if (err.code === 11000) {
-        return res.status(400).json({ error: 'You have already voted on this poll.' });
-      }
-      throw err;
+    if (req.user) {
+      voterData.userId = req.user._id;
+      findQuery['voters.userId'] = { $ne: req.user._id };
+    } else {
+      const guestId = req.headers['x-guest-id'] || req.ip;
+      voterData.guestId = guestId;
+      findQuery['voters.guestId'] = { $ne: guestId };
     }
 
-    // Correctly update poll vote counts using the option index
     const updateQuery = {
       $inc: {
         totalVotes: 1,
         [`options.${optionIndex}.votes`]: 1
       },
-      $push: { voters: { userId: req.user ? req.user._id : null, optionIndex, name: name.trim() } }
+      $push: { voters: voterData }
     };
 
-    // Update poll vote counts
-    const updatedPoll = await Poll.findByIdAndUpdate(pollId, updateQuery, { new: true }).lean();
+    const updatedPoll = await Poll.findOneAndUpdate(findQuery, updateQuery, { new: true }).lean();
+
+    if (!updatedPoll) {
+      // If the poll was not updated, it's because the user has already voted.
+      // The `findQuery` would not have matched.
+      return res.status(400).json({ error: 'You have already voted on this poll' });
+    }
 
     // Emit real-time update via Socket.io
     const io = req.app.get('io');
