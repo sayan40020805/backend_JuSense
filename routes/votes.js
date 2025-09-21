@@ -125,13 +125,12 @@ router.get('/:id/voters', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Access denied. Only the poll owner can view these details.' });
     }
 
-    // Get all votes for this poll to get voter names and their choices
-    const votes = await Vote.find({ pollId }, 'name optionIndex').lean();
-
+    // The poll document already contains voter information. We can process it directly
+    // without a second database query, which is more efficient and reliable.
     const voterDetails = poll.options.map((option, index) => ({
       option: option.text,
       count: option.votes || 0,
-      voters: votes.filter(vote => vote.optionIndex === index).map(vote => vote.name)
+      voters: poll.voters.filter(voter => voter.optionIndex === index).map(voter => voter.name)
     }));
 
     res.json({ totalVotes: poll.totalVotes, voterDetails });
