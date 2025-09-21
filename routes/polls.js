@@ -15,8 +15,8 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Question and 2-4 options are required' });
     }
 
-    if (options.some(option => !option.text || option.text.trim().length === 0)) {
-      return res.status(400).json({ error: 'All options must have text' });
+    if (options.some(option => !option || typeof option.text !== 'string' || option.text.trim().length === 0)) {
+      return res.status(400).json({ error: 'Each option must be an object with a non-empty text property.' });
     }
 
     // Create poll
